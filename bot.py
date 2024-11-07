@@ -9,7 +9,10 @@ from dotenv import load_dotenv
 from helpers.SimplePointsManager import PointsManagerSingleton
 from cogs import EXTENSIONS
 
+from helpers.DatabaseManager import DatabaseManager
+
 intents = discord.Intents.default()
+intents.members = True
 
 
 class LoggingFormatter(logging.Formatter):
@@ -70,27 +73,28 @@ class DiscordBot(commands.Bot):
         self.logger = logger
         self._connected = False
 
+        # Initialize the points manager and store it as an attribute
         self.points_manager = PointsManagerSingleton(
             base_url=os.getenv("API_BASE_URL"),
             api_key=os.getenv("API_KEY"),
             realm_id=os.getenv("REALM_ID")
         )
+        # Initialize the database manager
+        self.db_manager = DatabaseManager.get_instance(os.getenv("DATABASE_URL"))
 
     async def load_cogs(self) -> None:
         """
         The code in this function is executed whenever the bot will start.
         """
-        for file in os.listdir(f"{os.path.realpath(os.path.dirname(__file__))}/cogs"):
-            if file.endswith(".py"):
-                extension = file[:-3]
-                try:
-                    await self.load_extension(f"cogs.{extension}")
-                    self.logger.info(f"Loaded extension '{extension}'")
-                except Exception as e:
-                    exception = f"{type(e).__name__}: {e}"
-                    self.logger.error(
-                        f"Failed to load extension {extension}\n{exception}"
-                    )
+        for extension in EXTENSIONS:
+            try:
+                await self.load_extension(extension)
+                self.logger.info(f"Loaded extension '{extension}'")
+            except Exception as e:
+                exception = f"{type(e).__name__}: {e}"
+                self.logger.error(
+                    f"Failed to load extension {extension}\n{exception}"
+                )
 
     async def setup_hook(self) -> None:
         """
@@ -103,8 +107,8 @@ class DiscordBot(commands.Bot):
             f"Running on: {platform.system()} {platform.release()} ({os.name})"
         )
         self.logger.info("-------------------")
-        for cog in EXTENSIONS:
-            await self.load_extension(cog)
+        # Load each extension
+        await self.load_cogs()
 
     async def on_ready(self) -> None:
         """|coro|
@@ -131,4 +135,4 @@ class DiscordBot(commands.Bot):
 load_dotenv(override=True)
 
 bot = DiscordBot()
-bot.run(os.getenv("TOKEN"))
+bot.run(os.getenv("DISCORD_TOKEN"))
